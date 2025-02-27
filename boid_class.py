@@ -9,16 +9,12 @@ pygame.init()
 # Global Settings
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 800
-SPEED = 0.5
-NUMBER_OF_BOIDS = 20
-SIGHT_RANGE = 50
+SPEED = 2
+NUMBER_OF_BOIDS = 50
+SIGHT_RANGE = 10
 
 # Abstract class for all enteties
 class Enteties(ABC):
-    # Calculate the direction of the boid
-    @abstractmethod
-    def direction(self):
-        pass
     
     # Update position
     @abstractmethod
@@ -36,11 +32,8 @@ class Boid(Enteties, pygame.sprite.Sprite):
         image = pygame.image.load('Boid.png')
         self.image = pygame.transform.scale(image, (42,30))
         # Start with a random position
-        self.position = pygame.Vector2(x,y)
+        self.position = pygame.math.Vector2(x,y)
         self.velocity = pygame.math.Vector2(random.uniform(-1,1), random.uniform(-1,1)).normalize() * SPEED
-
-    def direction(self, avg_x, avg_y):
-        pass
 
     def update(self):
         self.position += self.velocity
@@ -67,37 +60,62 @@ class Boid(Enteties, pygame.sprite.Sprite):
 class Flock():
 
     def __init__(self):
-        self.boids = [Boid(random.randrange(0,SCREEN_WIDTH),random.randrange(0,SCREEN_HEIGHT)) for _ in range(NUMBER_OF_BOIDS)]
+        self.boids = [Boid(random.randrange(0, SCREEN_WIDTH), random.randrange(0,SCREEN_HEIGHT)) for _ in range(NUMBER_OF_BOIDS)]
+
 
     def collision(self):
         for i in range(NUMBER_OF_BOIDS):
-            avg_x = []
-            avg_y = []
-            temp_x = 0
-            temp_y = 0
+            nearby_boids = []
+            too_close_boids = []
             for j in range(NUMBER_OF_BOIDS):
                 # Boid can not collide with itself
                 if( i != j ):
-                    # Find all colliding boids and save their position
-                    if (self.boids[i].hitbox.colliderect(self.boids[j].hitbox)):
-                        if not (self.boids[j].position[0]) in avg_x:
-                            avg_x.append(self.boids[j].position[0])
-                        if not self.boids[j].position[1] in avg_y: 
-                            avg_y.append(self.boids[j].position[1])
+                    if(self.boids[j].position.distance_to(self.boids[i].position)) < 60:
+                        nearby_boids.append(self.boids[j])
 
-            # Calculate the average position of all colliding boids
-            if (not len(avg_x) == 0) and (not len(avg_y) == 0):
-            
-                for i in range(len(avg_x)-1):
-                    temp_x += avg_x[i]
-                temp_x = temp_x / (len(avg_x))
-        
-                for i in range(len(avg_y)-1):
-                    temp_y += avg_y[i]
-                temp_y = temp_y / len(avg_y)
-            
-            # Change direction of boid to average position of all colliding boids
-            #self.boids[i].direction(temp_x, temp_y)
+                    if(self.boids[j].position.distance_to(self.boids[i].position)) < 30:
+                        too_close_boids.append(self.boids[j])
+
+            if nearby_boids:
+                cohesion = pygame.math.Vector2(0,0)
+                alignment = pygame.math.Vector2(0,0)
+                for b in nearby_boids:
+                    cohesion = cohesion + (b.position)
+                    alignment = alignment + (b.velocity)
+
+                cohesion /= len(nearby_boids)
+                cohesion = cohesion - self.boids[i].position
+
+                alignment /= len(nearby_boids)
+                alignment = alignment - self.boids[i].velocity
+
+                # Adding cohesion force
+                steeringvelocity = (pygame.math.Vector2(cohesion.x , cohesion.y).normalize() * SPEED) - self.boids[i].velocity
+                self.boids[i].velocity += steeringvelocity * 0.01
+                self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
+
+                # Adding alignment force
+                self.boids[i].velocity += alignment *0.01
+                self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
+
+            if too_close_boids:
+
+                seperation = pygame.math.Vector2(0,0)
+
+                for b in too_close_boids:
+                    seperation = seperation + (b.position)
+
+                seperation /= len(too_close_boids)
+
+                seperation = self.boids[i].position - seperation
+
+                # Adding seperation force
+                seperationvelocity = (pygame.math.Vector2(seperation.x, seperation.y).normalize() * SPEED) - self.boids[i].velocity
+                self.boids[i].velocity += seperationvelocity * 0.05
+                self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
+
+
+                
                 
 
 
@@ -106,19 +124,16 @@ class Flock():
         for i in range(NUMBER_OF_BOIDS):
             self.boids[i].draw(screen)
 
-boids = [Boid(random.randrange(0,SCREEN_WIDTH),random.randrange(0,SCREEN_HEIGHT)) for _ in range(NUMBER_OF_BOIDS)]
     
 running = True
 
 display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
+flock = Flock()
 
 while(running):
-    display.fill((0,0,0))
     
-    for b in boids:
-        b.update()
-        b.draw(display)
-        
+    display.fill((0,0,0))
+    flock.update_boids(display)
     pygame.display.flip()
 
