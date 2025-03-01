@@ -9,9 +9,9 @@ pygame.init()
 # Global Settings
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 800
-SPEED = 2
-NUMBER_OF_BOIDS = 50
-SIGHT_RANGE = 10
+SPEED = 0.5
+NUMBER_OF_BOIDS = 10
+SIGHT_RANGE = 60
 
 # Abstract class for all enteties
 class Enteties(ABC):
@@ -55,6 +55,18 @@ class Boid(Enteties, pygame.sprite.Sprite):
         self.update()
         screen.blit(self.image, (self.position.x, self.position.y))
 
+# Hoiks should have same characteristics as Boids.
+# The changes should be:
+# 1. The hoiks should not have a seperation force, however it should apply
+# a stronger seperation force to the boids.
+# 2. The hoiks should also have a slightly greater speed than the Boids so
+# that it is able to 'catch' up to the Boids.
+# 3. Upon colliding with a Boid, the Boid should be removed, and it
+# should grant the Hoik with some "buff".
+class Hoik(Boid):
+
+    pass
+
 
 # Controls all the boids
 class Flock():
@@ -70,11 +82,11 @@ class Flock():
             for j in range(NUMBER_OF_BOIDS):
                 # Boid can not collide with itself
                 if( i != j ):
-                    if(self.boids[j].position.distance_to(self.boids[i].position)) < 60:
+                    if(self.boids[j].position.distance_to(self.boids[i].position)) < SIGHT_RANGE:
                         nearby_boids.append(self.boids[j])
 
-                    if(self.boids[j].position.distance_to(self.boids[i].position)) < 30:
-                        too_close_boids.append(self.boids[j])
+                    #if(self.boids[j].position.distance_to(self.boids[i].position)) < 30:
+                    #    too_close_boids.append(self.boids[j])
 
             if nearby_boids:
                 cohesion = pygame.math.Vector2(0,0)
@@ -82,6 +94,16 @@ class Flock():
                 for b in nearby_boids:
                     cohesion = cohesion + (b.position)
                     alignment = alignment + (b.velocity)
+
+                    # Calculating and applying seperation force by distance
+                    # The seperation force only applies if the distance to a boid is 
+                    # less than half the Sight Range
+                    if (self.boids[i].position.distance_to(b.position) < (SIGHT_RANGE / 1.5)):
+                        seperation_force = 0.5 / self.boids[i].position.distance_to(b.position) 
+                        seperation_vector = (self.boids[i].position - b.position) / 2
+                        self.boids[i].velocity += seperation_vector * seperation_force
+                        self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
+
 
                 cohesion /= len(nearby_boids)
                 cohesion = cohesion - self.boids[i].position
@@ -91,13 +113,14 @@ class Flock():
 
                 # Adding cohesion force
                 steeringvelocity = (pygame.math.Vector2(cohesion.x , cohesion.y).normalize() * SPEED) - self.boids[i].velocity
-                self.boids[i].velocity += steeringvelocity * 0.01
+                self.boids[i].velocity += steeringvelocity * 0.005
                 self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
 
                 # Adding alignment force
                 self.boids[i].velocity += alignment *0.01
                 self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
 
+            '''
             if too_close_boids:
 
                 seperation = pygame.math.Vector2(0,0)
@@ -113,7 +136,7 @@ class Flock():
                 seperationvelocity = (pygame.math.Vector2(seperation.x, seperation.y).normalize() * SPEED) - self.boids[i].velocity
                 self.boids[i].velocity += seperationvelocity * 0.05
                 self.boids[i].velocity = self.boids[i].velocity.normalize() * SPEED
-
+            '''
 
                 
                 
