@@ -132,11 +132,23 @@ class Hoik(Boid):
     def seperation(self):
         pass
     
+class Object(Boid):
+
+    def __init__(self, x, y):
+        super().__init__(x,y)
+        image = pygame.image.load('Object.png')
+        self.image = pygame.transform.scale(image, (30,30))
+
+    def update(self, boids):
+        pass
+
 # Controls all the boids
 class Flock():
 
     def __init__(self):
         self.boids = [Boid(random.randrange(0, SCREEN_WIDTH), random.randrange(0,SCREEN_HEIGHT)) for _ in range(NUMBER_OF_BOIDS)]
+        for _ in range(10):
+            self.boids.append(Object(random.randrange(0, SCREEN_WIDTH), random.randrange(0, SCREEN_HEIGHT)))
         self.boids.append(Hoik(random.randrange(0, SCREEN_WIDTH), random.randrange(0, SCREEN_HEIGHT)))
         self.dead_boids = []
 
