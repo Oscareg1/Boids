@@ -8,6 +8,7 @@ pygame.init()
 SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 800
 NUMBER_OF_BOIDS = 50
+SPEED = 0.5
 
 # Abstract class for all enteties
 class Enteties(ABC):
@@ -45,7 +46,7 @@ class Boid(Enteties):
 
         # Setting
         self.sight_range = 60
-        self.speed = 0.5
+        self.speed = SPEED
 
         # Start with a random position
         self.position = pygame.math.Vector2(x,y)
@@ -60,8 +61,13 @@ class Boid(Enteties):
             self.cohesion()
             self.alignment()
             self.seperation()
-            
-        self.position += self.velocity
+        
+        # Normalize velocity to make sure speed is constant
+        self.velocity = self.velocity.normalize()
+
+        # Update position
+        self.position += self.velocity * self.speed
+        
 
         if self.position.x > SCREEN_WIDTH:
             self.position.x = 1
@@ -77,6 +83,12 @@ class Boid(Enteties):
 
         self.boids = []
 
+    # Calculate average position of nearby boids,
+    # and steer towards it.
+
+    # The calculation of cohesion was inspired by the
+    # pseudocode provided at http://www.kfish.org/boids/pseudocode.html
+    
     def cohesion(self):
         cohesion = pygame.math.Vector2(0,0)
 
@@ -89,7 +101,12 @@ class Boid(Enteties):
         # Adding cohesion force
         steeringvelocity = (pygame.math.Vector2(cohesion.x , cohesion.y).normalize() * self.speed) - self.velocity
         self.velocity =  (self.velocity + steeringvelocity * 0.01).normalize() * self.speed
-        #self.velocity = self.velocity.normalize() * self.speed
+
+    # Calculate average velocity of other boids,
+    # and steer towards it.
+
+    # The calculation of alignment was inspired by the
+    # pseudocode provided at http://www.kfish.org/boids/pseudocode.html
 
     def alignment(self):
         alignment = pygame.math.Vector2(0,0)
@@ -101,18 +118,19 @@ class Boid(Enteties):
 
         # Adding alignment force
         self.velocity = (self.velocity + alignment *0.01).normalize() * self.speed
-        #self.velocity = self.velocity.normalize() * self.speed
 
+    # Calculating and applying seperation force by distance
+    # The seperation force only applies if the distance to a boid is 
+    # less than half the Sight Range
     def seperation(self):
-        # Calculating and applying seperation force by distance
-        # The seperation force only applies if the distance to a boid is 
-        # less than half the Sight Range
         for b in self.boids:
-            if (self.position.distance_to(b.position) < (self.sight_range / 4)):
+            if (self.position.distance_to(b.position) < (self.sight_range / 2)):
+
+                # The closer the boid is to another, the stronger the seperation force will be.
                 seperation_force = 0.5 / self.position.distance_to(b.position) 
+                
                 seperation_vector = (self.position - b.position) 
                 self.velocity = (self.velocity + seperation_vector * seperation_force) * self.speed
-                #self.velocity = self.velocity.normalize() * self.speed
 
     def draw (self, screen):
         self.update(self.boids)
@@ -121,30 +139,33 @@ class Boid(Enteties):
 class Hoik(Boid):
      
     def __init__(self, x ,y):
-        #Inherit from Boid class
+        #Inherit from Boid class, with some changes
         super().__init__(x,y)
         image = pygame.image.load('Hoik.png')
         self.image = pygame.transform.scale(image, (42,30))
         self.sight_range = 100
-        self.speed = 0.3
+        self.speed = SPEED / 1.3
 
-    # Since the Hoik should not avoid Boids, seperation is not needed
+    # Since the Hoik should not avoid Boids, seperation is turned off
     def seperation(self):
         pass
     
 class Object(Boid):
 
     def __init__(self, x, y):
+        #Inherit from boid class, with some changes
         super().__init__(x,y)
         image = pygame.image.load('Object.png')
         self.image = pygame.transform.scale(image, (30,30))
 
+    # Since the object should be stationary, we remove the update method
     def update(self, boids):
         pass
 
 # Controls all the boids
 class Flock():
 
+    # Create a list of all Enteties that the Flock will control and own.
     def __init__(self):
         self.boids = [Boid(random.randrange(0, SCREEN_WIDTH), random.randrange(0,SCREEN_HEIGHT)) for _ in range(NUMBER_OF_BOIDS)]
         for _ in range(10):
@@ -152,6 +173,8 @@ class Flock():
         self.boids.append(Hoik(random.randrange(0, SCREEN_WIDTH), random.randrange(0, SCREEN_HEIGHT)))
         self.dead_boids = []
 
+    # Set up list of all boids that are in range of other boids.
+    # Give the list to each boid so that they can retreive information from it.
     def collision(self):
         for i in range(len(self.boids)):
             nearby_boids = []
@@ -160,19 +183,19 @@ class Flock():
                 if( i != j ):
                     if(self.boids[j].position.distance_to(self.boids[i].position)) < self.boids[i].sight_range:
                         nearby_boids.append(self.boids[j])
-
+                
+                # Last object in boid list is predator
                 if((i == len(self.boids) - 1)):
                     if(self.boids[len(self.boids)- 1].position.distance_to(self.boids[j].position) < 10):
-                        if self.boids[j] in self.boids:
-                            print("object is in list")
                         self.dead_boids.append(self.boids[j])
-            
-            if nearby_boids:
-                self.boids[i].update(nearby_boids)
+  
+            self.boids[i].update(nearby_boids)
 
         if self.dead_boids:
             for d in self.dead_boids:
-                self.boids.remove(d)
+                # Predator should not be able to eat static objects
+                if type(d) is not Object:
+                    self.boids.remove(d)
 
             self.dead_boids = []
 
@@ -187,8 +210,10 @@ display = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 flock = Flock()
 
+# Game loop will run until exit button is pressed
 while(running):
 
+    # Close application
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
